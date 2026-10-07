@@ -13,6 +13,8 @@ app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/recipes', require('./routes/recipes'));
+app.use('/api/orders', require('./routes/orders'));
 // Next: orders, verification, sewing routes get mounted here
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
@@ -22,5 +24,6 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Internal server error' });
 });
+
 
 module.exports = app; // exported separately so tests can import it without opening a port
