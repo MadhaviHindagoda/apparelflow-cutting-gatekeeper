@@ -109,17 +109,64 @@ async function getOrderForSupervisor(orderId, userId) {
     [orderId]
   );
 
+  const noteRes = await pool.query(
+    `SELECT rejection_note, timestamp FROM verification_logs
+      WHERE order_id = $1 AND decision = 'REJECTED'
+      ORDER BY timestamp DESC, id DESC LIMIT 1`,
+    [orderId]
+  );
+
   const expectedFabric = expectedFabricYards(order.target_qty, order.std_fabric_yards);
   return {
     ...order,
+    last_rejection_note: noteRes.rows[0] ? noteRes.rows[0].rejection_note : null,
     expected_fabric_yds: expectedFabric,
     wastage_pct: wastagePct(order.actual_fabric_yds, expectedFabric),
     items: items.rows,
   };
 }
 
+// REJECTED -> PENDING_VERIFICATION after re-cutting. Only the supervisor who created it.
+// Counts are reset so the verifier must physically recount everything.
+async function resubmitOrder(orderId, userId, { actualFabricYds, fabricRollId } = {}) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT id, status FROM cutting_orders WHERE id = $1 AND created_by = $2 FOR UPDATE',
+      [orderId, userId]
+    );
+    const order = rows[0];
+    if (!order) throw new HttpError(404, 'Order not found');
+    if (order.status !== 'REJECTED') {
+      throw new HttpError(409, `Order is ${order.status}; only REJECTED orders can be resubmitted`);
+    }
+
+    await client.query(
+      'UPDATE verification_items SET actual_qty = NULL, status = NULL WHERE order_id = $1',
+      [orderId]
+    );
+    await client.query(
+      `UPDATE cutting_orders
+          SET status = 'PENDING_VERIFICATION',
+              actual_fabric_yds = COALESCE($2, actual_fabric_yds),
+              fabric_roll_id = COALESCE($3, fabric_roll_id)
+        WHERE id = $1`,
+      [orderId, actualFabricYds ?? null, fabricRollId ?? null]
+    );
+    await client.query('COMMIT');
+    return { id: orderId, status: 'PENDING_VERIFICATION' };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   HttpError,
+  resubmitOrder,
   listRecipes,
   createOrder,
   listOrdersForSupervisor,

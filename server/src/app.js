@@ -16,6 +16,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/recipes', require('./routes/recipes'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/verification', require('./routes/verification'));
+app.use('/api/sewing', require('./routes/sewing'));
 // Next: orders, verification, sewing routes get mounted here
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
