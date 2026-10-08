@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "db:schema": "node src/db/migrate.js",
     "db:seed": "node src/db/seed.js",
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
